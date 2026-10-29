@@ -30,6 +30,9 @@ from flask import Flask, jsonify, request
 
 import audit
 import config
+import detector
+import scoring
+import stylometry
 
 app = Flask(__name__)
 
@@ -201,15 +204,65 @@ def submit():
     """
     payload = request.get_json(silent=True) or {}
 
-    # TODO: delete this and build the route.
+    text = payload.get("text", "")
+    creator_id = payload.get("creator_id", "")
+
+    if not isinstance(text, str) or len(text.strip()) < 10:
+        return jsonify({
+            "error": "invalid_input",
+            "message": "Field 'text' must be a non-empty string of at least 10 characters.",
+        }), 400
+
+    if len(text) > 50_000:
+        return jsonify({
+            "error": "invalid_input",
+            "message": "Text is too long. Maximum is 50,000 characters.",
+        }), 400
+
+    if not creator_id or not isinstance(creator_id, str) or not creator_id.strip():
+        return jsonify({
+            "error": "invalid_input",
+            "message": "Field 'creator_id' is required.",
+        }), 400
+
+    content_id = str(uuid.uuid4())
+
+    try:
+        model_score = detector.model_signal(text)
+    except ValueError as exc:
+        return jsonify({
+            "error": "invalid_input",
+            "message": str(exc),
+        }), 400
+    except detector.DetectorUnavailable as exc:
+        return jsonify({
+            "error": "detector_unavailable",
+            "message": str(exc),
+        }), 503
+
+    style_score = stylometry.style_signal(text)
+    combined_score = scoring.combine_signals(model_score, style_score)
+    guess, label = scoring.score_to_label(combined_score)
+
+    audit.log_decision(
+        content_id=content_id,
+        creator_id=creator_id,
+        guess=guess,
+        model_score=model_score,
+        style_score=style_score,
+        combined_score=combined_score,
+        label=label,
+        status="decided",
+    )
+
     return jsonify({
-        "error": "not_implemented",
-        "message": "POST /submit isn't built yet — see the TODO in app.py.",
-        "you_sent": {
-            "text_length": len(payload.get("text", "")),
-            "creator_id": payload.get("creator_id"),
-        },
-    }), 501
+        "content_id": content_id,
+        "guess": guess,
+        "confidence": combined_score,
+        "label": label,
+        "model_score": model_score,
+        "style_score": style_score,
+    })
 
 
 @app.post("/appeal")
@@ -234,12 +287,45 @@ def appeal():
     """
     payload = request.get_json(silent=True) or {}
 
-    # TODO: delete this and build the route.
+    content_id = payload.get("content_id", "")
+    reasoning = payload.get("reasoning", "")
+
+    if not content_id or not isinstance(content_id, str) or not content_id.strip():
+        return jsonify({
+            "error": "invalid_input",
+            "message": "Field 'content_id' is required.",
+        }), 400
+
+    if not reasoning or not isinstance(reasoning, str) or not reasoning.strip():
+        return jsonify({
+            "error": "invalid_input",
+            "message": "Field 'reasoning' is required.",
+        }), 400
+
+    entries = audit.entries_for(content_id)
+    if not entries:
+        return jsonify({
+            "error": "not_found",
+            "message": f"No submission found with content_id '{content_id}'. Check for typos.",
+        }), 404
+
+    creator_id = next(
+        (e.get("creator_id") for e in entries if e.get("status") == "decided"),
+        "unknown",
+    )
+
+    audit.log_appeal(
+        content_id=content_id,
+        creator_id=creator_id,
+        reasoning=reasoning,
+    )
+
     return jsonify({
-        "error": "not_implemented",
-        "message": "POST /appeal isn't built yet — see the TODO in app.py.",
-        "you_sent": payload,
-    }), 501
+        "ok": True,
+        "content_id": content_id,
+        "status": "under_review",
+        "message": "Your appeal has been recorded. This submission is now under review.",
+    })
 
 
 # ── Already works ─────────────────────────────────────────────────────────────
