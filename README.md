@@ -130,15 +130,18 @@ catch patterns the model misses -- or flag disagreement.
 **Where it lives:** `scoring.py::combine_signals`
 
 **A case where my two signals split, and what my rule does with it:**
-Plain human-written text (a student's own direct explanation in short,
-repetitive sentences) scores model_signal ~ 0.70 (GPT-2 finds it predictable)
-but style_signal ~ 0.35 (varied enough sentence structure, some unique
-vocabulary). Combined: 0.65 * 0.70 + 0.35 * 0.35 = 0.455 + 0.1225 = 0.577,
-which lands in the "unsure" band. The two signals disagree; the rule does not
-force a verdict and instead maps the disagreement to "unsure" rather than
-accusing the writer. That is intentional: a strong disagreement is itself
-uncertainty, and the cost of a false accusation is higher than leaving a
-decision unresolved.
+Running "The implementation of the proposed framework is comprehensive. It
+addresses all relevant computational requirements. The systematic evaluation
+ensures optimal performance. Integration challenges are handled effectively.
+The proposed solution delivers consistent and reliable results across all tested
+scenarios." through both signals produces model_score=0.3650 and
+style_score=0.6462. The signals point in opposite directions: GPT-2 finds this
+text somewhat unpredictable (model says "not obviously AI") but the shape
+measures read it as uniform and AI-like (style says "probably AI"). Combined:
+0.65 * 0.3650 + 0.35 * 0.6462 = 0.2373 + 0.2262 = 0.4635, which lands in the
+"unsure" band (0.35 -- 0.65). The rule does not force a verdict; disagreement
+maps to "unsure" rather than an accusation. The cost of wrongly labeling a
+genuine writer's work is higher than leaving this undecided.
 
 
 
@@ -186,20 +189,17 @@ received this label deserves to know they can push back.
 ```bash
 $ curl -X POST http://127.0.0.1:5000/submit \
   -H "Content-Type: application/json" \
-  -d '{
-    "text": "The implementation of the proposed framework is comprehensive. It addresses all relevant computational requirements. The systematic evaluation ensures optimal performance. Integration challenges are handled effectively. The proposed solution delivers consistent and reliable results across all tested scenarios.",
-    "creator_id": "student-42"
-  }'
+  -d '{"text": "The analysis reveals several key findings. First, the data demonstrates a significant correlation between the variables. Second, the results suggest that further research is warranted. Third, the conclusions drawn from this study have important implications for the field. The evidence supports the hypothesis that was initially proposed.", "creator_id": "student-42"}'
 ```
 
 ```json
 {
-  "confidence": 0.7397,
-  "content_id": "3f8a1c2d-4e5b-6a7c-8d9e-0f1a2b3c4d5e",
-  "guess": "ai",
-  "label": "This submission shows patterns strongly associated with AI-generated writing. If this is your own work, you can submit an appeal below.",
-  "model_score": 0.79,
-  "style_score": 0.6462
+    "confidence": 0.7891,
+    "content_id": "07dd3174-0673-4edd-987d-632a879f1691",
+    "guess": "ai",
+    "label": "This submission shows patterns strongly associated with AI-generated writing. If this is your own work, you can submit an appeal below.",
+    "model_score": 0.8455,
+    "style_score": 0.6843
 }
 ```
 
@@ -208,18 +208,15 @@ $ curl -X POST http://127.0.0.1:5000/submit \
 ```bash
 $ curl -X POST http://127.0.0.1:5000/appeal \
   -H "Content-Type: application/json" \
-  -d '{
-    "content_id": "3f8a1c2d-4e5b-6a7c-8d9e-0f1a2b3c4d5e",
-    "reasoning": "I wrote this myself for a lab report. I tend to write in short declarative sentences."
-  }'
+  -d '{"content_id": "07dd3174-0673-4edd-987d-632a879f1691", "reasoning": "I wrote this myself for a lab report. I tend to write in short declarative sentences."}'
 ```
 
 ```json
 {
-  "content_id": "3f8a1c2d-4e5b-6a7c-8d9e-0f1a2b3c4d5e",
-  "message": "Your appeal has been recorded. This submission is now under review.",
-  "ok": true,
-  "status": "under_review"
+    "content_id": "07dd3174-0673-4edd-987d-632a879f1691",
+    "message": "Your appeal has been recorded. This submission is now under review.",
+    "ok": true,
+    "status": "under_review"
 }
 ```
 
@@ -231,28 +228,28 @@ $ curl "http://127.0.0.1:5000/log?limit=3"
 
 ```json
 {
-  "count": 2,
-  "entries": [
-    {
-      "combined_score": 0.7397,
-      "content_id": "3f8a1c2d-4e5b-6a7c-8d9e-0f1a2b3c4d5e",
-      "creator_id": "student-42",
-      "guess": "ai",
-      "label": "This submission shows patterns strongly associated with AI-generated writing. If this is your own work, you can submit an appeal below.",
-      "model_score": 0.79,
-      "status": "decided",
-      "style_score": 0.6462,
-      "timestamp": "2026-10-28T14:23:17+00:00"
-    },
-    {
-      "content_id": "3f8a1c2d-4e5b-6a7c-8d9e-0f1a2b3c4d5e",
-      "creator_id": "student-42",
-      "event": "appeal",
-      "reasoning": "I wrote this myself for a lab report. I tend to write in short declarative sentences.",
-      "status": "under_review",
-      "timestamp": "2026-10-28T14:25:03+00:00"
-    }
-  ]
+    "count": 2,
+    "entries": [
+        {
+            "combined_score": 0.7891,
+            "content_id": "07dd3174-0673-4edd-987d-632a879f1691",
+            "creator_id": "student-42",
+            "guess": "ai",
+            "label": "This submission shows patterns strongly associated with AI-generated writing. If this is your own work, you can submit an appeal below.",
+            "model_score": 0.8455,
+            "status": "decided",
+            "style_score": 0.6843,
+            "timestamp": "2026-10-29T02:47:49+00:00"
+        },
+        {
+            "content_id": "07dd3174-0673-4edd-987d-632a879f1691",
+            "creator_id": "student-42",
+            "event": "appeal",
+            "reasoning": "I wrote this myself for a lab report. I tend to write in short declarative sentences.",
+            "status": "under_review",
+            "timestamp": "2026-10-29T02:57:57+00:00"
+        }
+    ]
 }
 ```
 
