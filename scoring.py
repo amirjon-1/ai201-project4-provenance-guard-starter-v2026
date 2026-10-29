@@ -52,10 +52,15 @@ def combine_signals(model_score: float, style_score: float) -> float:
     The weights in config.py are placeholders. Change them, or ignore them and
     write a different rule.
     """
-    # TODO: replace this
-    return (
+    # Weighted average. Model signal gets more authority (0.65) because it reads
+    # the text semantically; style signal (0.35) corroborates or contradicts.
+    # When the two strongly disagree (e.g. 0.9 vs 0.1), the combined score
+    # lands near 0.62 -- just below the AI threshold -- so disagreement maps
+    # to "unsure" rather than a high-confidence accusation.
+    return round(
         config.WEIGHT_MODEL_SIGNAL * model_score
-        + config.WEIGHT_STYLE_SIGNAL * style_score
+        + config.WEIGHT_STYLE_SIGNAL * style_score,
+        4,
     )
 
 
@@ -85,12 +90,23 @@ def score_to_label(score: float) -> tuple[str, str]:
     think if they got it on their own work. That question is the whole
     milestone.
     """
-    # TODO: replace this — thresholds are in config.py
     if score >= config.AI_THRESHOLD:
-        return "ai", "PLACEHOLDER — write the high-confidence AI label."
+        return (
+            "ai",
+            "This submission shows patterns strongly associated with AI-generated "
+            "writing. If this is your own work, you can submit an appeal below.",
+        )
     if score <= config.HUMAN_THRESHOLD:
-        return "human", "PLACEHOLDER — write the high-confidence human label."
-    return "unsure", "PLACEHOLDER — write the unsure label."
+        return (
+            "human",
+            "Our analysis suggests this was written by a person.",
+        )
+    return (
+        "unsure",
+        "Our analysis did not reach a clear conclusion. No determination has "
+        "been made about this submission. If you have concerns, you can submit "
+        "an appeal below.",
+    )
 
 
 def label_ranges() -> list[tuple[str, str]]:
