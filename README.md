@@ -490,7 +490,9 @@ doesn't know the system exists would never use.
 
 ## Run Log and Verdicts
 
-All three runs of `run_eval.py` produced identical results (deterministic model, same input texts, same state).
+All three runs within each label are identical (deterministic model, same input texts, same state).
+
+**Before** (AI_THRESHOLD = 0.65):
 
 | Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
 |---|---|---|---|---|---|
@@ -500,30 +502,37 @@ All three runs of `run_eval.py` produced identical results (deterministic model,
 | 4. Submit returns 200 + content_id | 200 response with content_id | PASS (0.6414) | PASS (0.6414) | PASS (0.6414) | PASS |
 | 5. Malformed requests all return 400 | 4/4 return 400 | 4/4 -> 400 | 4/4 -> 400 | 4/4 -> 400 | PASS |
 
-**Real output from one trial** (criterion 2, run_eval.py::run_scenario, scenarios.py criterion 2):
+**After** (AI_THRESHOLD = 0.75, MF08 bug fixed):
+
+| Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
+|---|---|---|---|---|---|
+| 1. Human texts not labeled ai | <= 2/10 labeled ai | 0/10 labeled ai | 0/10 labeled ai | 0/10 labeled ai | PASS |
+| 2. Clear gap: AI vs human score | gap >= 0.25 | gap 0.2173 | gap 0.2173 | gap 0.2173 | FAIL |
+| 3. Boundary texts hit expected zones | ai / unsure / human | all 3 unsure | all 3 unsure | all 3 unsure | FAIL |
+| 4. Submit returns 200 + content_id | 200 response with content_id | PASS (0.6414) | PASS (0.6414) | PASS (0.6414) | PASS |
+| 5. Malformed requests all return 400 | 4/4 return 400 | 4/4 -> 400 | 4/4 -> 400 | 4/4 -> 400 | PASS |
+
+**Real output from one trial** (criterion 2, after run, run_eval.py::run_scenario, scenarios.py criterion 2):
 
 ```json
-{
-  "results": [
-    {
-      "text_index": 0,
-      "status": 200,
-      "guess": "ai",
-      "confidence": 0.7906,
-      "model_score": 0.8632,
-      "style_score": 0.6295
-    },
-    {
-      "text_index": 1,
-      "status": 200,
-      "guess": "unsure",
-      "confidence": 0.5733,
-      "model_score": 0.4753,
-      "style_score": 0.7264
-    }
-  ],
-  "gap": 0.2173
-}
+[
+  {
+    "status": 200,
+    "guess": "ai",
+    "confidence": 0.7906,
+    "model_score": 0.8308,
+    "style_score": 0.7159,
+    "sent": "The implementation of a comprehensive framework for data management re..."
+  },
+  {
+    "status": 200,
+    "guess": "unsure",
+    "confidence": 0.5733,
+    "model_score": 0.4908,
+    "style_score": 0.7264,
+    "sent": "My dad doesn't have much patience for technology but he learned to use..."
+  }
+]
 ```
 
 **Diagnoses**
@@ -609,16 +618,27 @@ AttributeError propagated to a 500. Fixed by adding an isinstance check:
 
 ## The Improvement
 
-**What I changed:** Raised AI_THRESHOLD from 0.65 to 0.75 in config.py. Also
-fixed the MF08 crash in app.py (isinstance check on the parsed JSON body).
+**Disclosure: I made two changes, not one.** The threshold raise is the signal
+improvement. The MF08 isinstance fix is a bug fix. They are different in kind
+and their effects are separable.
 
-**Which diagnosis pointed at it:** The criterion 1 diagnosis identified
-label_mapping as the stage and AI_THRESHOLD=0.65 as the mechanism. The four
-failing human texts scored 0.6723 to 0.7028 -- all above 0.65 but all below
-0.75. Raising the threshold to 0.75 moves every one of them into the "unsure"
-zone without changing any signal scores. The MF08 fix was separate: the route
-diagnosis identified app.py::submit as the stage and the missing isinstance
-check as the mechanism.
+**Change 1 -- AI_THRESHOLD raised from 0.65 to 0.75 (config.py)**
+
+Which diagnosis pointed at it: Criterion 1 identified label_mapping as the
+stage and AI_THRESHOLD=0.65 as the mechanism. The four failing human texts
+scored 0.6723 to 0.7028 -- all above 0.65 but all below 0.75. Raising the
+threshold moves every one of them into "unsure" without changing any signal
+scores. Effect in after-run: criterion 1 moves from FAIL to PASS. FP05 (0.671)
+moves from ai/BROKE to unsure/HELD.
+
+**Change 2 -- isinstance check on parsed JSON body (app.py::submit)**
+
+Which diagnosis pointed at it: MF08 identified the route as the stage and the
+missing type check as the mechanism. request.get_json() returns a list for a
+JSON array body; list.get() raises AttributeError; that surfaces as a 500.
+Adding `payload = raw if isinstance(raw, dict) else {}` makes it return 400.
+This is a correctness fix, not a signal improvement. It has no effect on any
+score or label -- only on how the route handles malformed input.
 
 ### Attack Run -- After
 
@@ -655,19 +675,23 @@ unsure/HELD (0.671 is now below 0.75). MF08 flipped from 500/BROKE to 400/HELD
 
 **Did it help, and how do I know:**
 
-Criterion 1 moved from FAIL to PASS. All 10 human texts now land "unsure"
-instead of "ai." The four texts that were over the line (0.6723-0.7028) are now
-safely below 0.75.
+Criterion 1 moved from FAIL to PASS. All 10 human texts now return "unsure"
+instead of "ai." The win is real but narrow: it only worked because those four
+failing texts happened to score 0.6723-0.7028, squarely inside the 0.65-0.74
+band the threshold move opened up. FP02, FP03, and FP04 score 0.776-0.854 --
+well above the new 0.75 cutoff -- and are still labeled "ai". Formal academic
+writing and procedural prose remain fully broken. The improvement helped the
+easy false positives and left the hard ones untouched.
 
-The tradeoff is real: AI text scoring between 0.65 and 0.74 now lands "unsure"
-instead of "ai." EV03 (formatting-evaded AI text, score 0.545) was already
-"unsure" before the change and stays there. Any genuine AI text in the 0.65-0.74
-range now escapes a "ai" label. The system is less aggressive on accusations and
-also less aggressive on catches.
+The cost: AI text scoring 0.65-0.74 now lands "unsure" instead of "ai". That
+is not a theoretical risk -- it is the zone the threshold directly vacated.
+EV03 (formatting-evaded AI text, score 0.545) was already below 0.65 and is
+unaffected. The system is less aggressive on accusations and proportionally less
+aggressive on catches in that band.
 
-Criteria 2 and 3 did not change. The threshold change does not touch signal
-scores, only label_mapping. The gap in criterion 2 and the stylometry floor in
-criterion 3 are both upstream of label_mapping and unaffected.
+Criteria 2 and 3 did not change. Both failures are upstream of label_mapping --
+the style signal floor and the gap problem live in the signals themselves -- so
+adjusting the threshold cannot touch them.
 
 ---
 
@@ -724,8 +748,12 @@ distinction.
 
 **The trade I'd make if this ran for real:**
 
-<!-- Two sentences. Fewer wrong accusations means more AI text getting through.
-     Say which way you'd go and WHO PAYS FOR IT. -->
+I'd keep the higher threshold. Falsely accusing a human writer of using AI is
+the worse error -- they face a real consequence (failed submission, lost grade,
+damaged trust) while the system has an appeal path for borderline AI content.
+The writers who pay for this choice are the ones generating AI text that scores
+0.65-0.74: they now get "unsure" instead of a flag and may slip through without
+review.
 
 
 
