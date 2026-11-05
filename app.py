@@ -154,7 +154,7 @@ def health():
 # ── YOU BUILD THIS ────────────────────────────────────────────────────────────
 
 @app.post("/submit")
-# @limiter.limit(f"{config.RATE_LIMIT_PER_MINUTE}/minute;{config.RATE_LIMIT_PER_DAY}/day")
+@limiter.limit(f"{config.RATE_LIMIT_PER_MINUTE}/minute;{config.RATE_LIMIT_PER_DAY}/day")
 def submit():
     """
     Take a piece of text, decide about it, log the decision, answer.
@@ -202,24 +202,39 @@ def submit():
     what should this do when `text` is missing, empty, or enormous? A crash on
     a malformed input is one of the most common real failures there is.
     """
-    payload = request.get_json(silent=True) or {}
+    raw = request.get_json(silent=True)
+    payload = raw if isinstance(raw, dict) else {}
 
     text = payload.get("text", "")
     creator_id = payload.get("creator_id", "")
 
     if not isinstance(text, str) or len(text.strip()) < 10:
+        audit.log_rejection(
+            creator_id=creator_id or "unknown",
+            reason="invalid_text",
+            detail="text missing, empty, or under 10 characters",
+        )
         return jsonify({
             "error": "invalid_input",
             "message": "Field 'text' must be a non-empty string of at least 10 characters.",
         }), 400
 
     if len(text) > 50_000:
+        audit.log_rejection(
+            creator_id=creator_id or "unknown",
+            reason="text_too_long",
+            detail=f"text length {len(text)}",
+        )
         return jsonify({
             "error": "invalid_input",
             "message": "Text is too long. Maximum is 50,000 characters.",
         }), 400
 
     if not creator_id or not isinstance(creator_id, str) or not creator_id.strip():
+        audit.log_rejection(
+            creator_id="unknown",
+            reason="missing_creator_id",
+        )
         return jsonify({
             "error": "invalid_input",
             "message": "Field 'creator_id' is required.",
@@ -235,6 +250,11 @@ def submit():
             "message": str(exc),
         }), 400
     except detector.DetectorUnavailable as exc:
+        audit.log_rejection(
+            creator_id=creator_id,
+            reason="detector_unavailable",
+            detail=str(exc)[:200],
+        )
         return jsonify({
             "error": "detector_unavailable",
             "message": str(exc),
