@@ -139,7 +139,7 @@ style_score=0.6462. The signals point in opposite directions: GPT-2 finds this
 text somewhat unpredictable (model says "not obviously AI") but the shape
 measures read it as uniform and AI-like (style says "probably AI"). Combined:
 0.65 * 0.3650 + 0.35 * 0.6462 = 0.2373 + 0.2262 = 0.4635, which lands in the
-"unsure" band (0.35 -- 0.65). The rule does not force a verdict; disagreement
+"unsure" band (0.35 -- 0.75). The rule does not force a verdict; disagreement
 maps to "unsure" rather than an accusation. The cost of wrongly labeling a
 genuine writer's work is higher than leaving this undecided.
 
@@ -306,8 +306,9 @@ A real writer submitting a document -- or a few revisions -- checks in maybe
 five times in a busy hour. Ten per minute is generous for any single person
 doing genuine work, and throttles anyone running automated variations within
 seconds. Five hundred per day lets a heavy user submit many pieces across a
-full day without interruption, while a script hitting the endpoint every second
-would exhaust the daily budget in under nine minutes. The two limits work
+full day without interruption, while a script hitting the endpoint every second still only clears 10 per
+minute through the per-minute gate, exhausting the daily budget in about 50
+minutes (500 requests / 10 per minute). The two limits work
 together: the per-minute limit stops bursts, the per-day limit stops slow
 sustained probing.
 
@@ -512,7 +513,10 @@ All three runs within each label are identical (deterministic model, same input 
 | 4. Submit returns 200 + content_id | 200 response with content_id | PASS (0.6414) | PASS (0.6414) | PASS (0.6414) | PASS |
 | 5. Malformed requests all return 400 | 4/4 return 400 | 4/4 -> 400 | 4/4 -> 400 | 4/4 -> 400 | PASS |
 
-**Real output from one trial** (criterion 2, after run, run_eval.py::run_scenario, scenarios.py criterion 2):
+**Real output from one trial** (criterion 2, run_eval.py::run_scenario, scenarios.py criterion 2).
+Before and after show identical signal scores -- the threshold change only affects label_mapping,
+not signal computation, so model_score and style_score are the same in both runs. The earlier
+"before" paste showed different numbers (0.8632, 0.4753) and was wrong; these are the real values:
 
 ```json
 [
@@ -556,7 +560,7 @@ calls) receives style_score 0.7264. The writer uses long, varied sentences and
 rich vocabulary -- exactly the patterns the stylometry signal is trying to find,
 but here they indicate genuine expressiveness, not AI output. The combined score
 0.5733 is too close to the AI text at 0.7906, leaving a gap of 0.2173 instead
-of the required 0.25. The model signal reads it correctly (model_score 0.4753,
+of the required 0.25. The model signal reads it correctly (model_score 0.4908,
 below AI level), but style drags the combined score up. This is a signal-two
 problem: style_signal cannot distinguish between AI-like surface uniformity and
 human richness, because richness in vocabulary and sentence variety is exactly
@@ -589,7 +593,7 @@ overwhelms the combining rule. Two typos per paragraph are enough to evade.
 EV03 (line breaks after every sentence): model_score falls to 0.4552 because
 GPT-2 treats newlines as sentence terminators and the fragments become lower
 probability; style_score 0.7105 stays high (the content is still AI-like in
-shape). Combined 0.5446 falls into unsure, below the AI threshold of 0.65. EV04
+shape). Combined 0.5446 falls into unsure, below the AI threshold (0.65 at the time of the before run). EV04
 (heavy mid-sentence punctuation with many commas): model_score drops to 0.2433
 because unusual punctuation patterns produce low-probability token sequences.
 Combined 0.291 drops below the human threshold and gets labeled "human." Both
