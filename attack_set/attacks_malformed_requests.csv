@@ -1,0 +1,21 @@
+id,family,targets,raw_body,send_as,content_type
+MF01,malformed_input,400 not 500 — empty body sent as raw bytes,,raw,application/json
+MF02,malformed_input,400 not 500 — missing text field,"{""creator_id"": ""attacker_MF02""}",json,
+MF03,malformed_input,400 not 500 — null text value (malformed JSON),"{""text"": null ""creator_id"": ""attacker_MF03""}",raw,application/json
+MF04,malformed_input,400 not 500 — missing creator_id field,"{""text"": ""This is a test submission that is definitely long enough to pass the minimum length check.""}",json,
+MF05,malformed_input,400 not 500 — text below minimum length,"{""text"": ""short"", ""creator_id"": ""attacker_MF05""}",json,
+MF06,malformed_input,service robustness — not JSON at all,this is not json at all,raw,application/json
+MF07,malformed_input,service robustness — wrong content type,"{""text"": ""Some reasonable text that should be evaluated by the service."", ""creator_id"": ""attacker_MF07""}",raw,text/plain
+MF08,malformed_input,service robustness — JSON array instead of object,"[{""text"": ""Some text"", ""creator_id"": ""attacker_MF08""}]",raw,application/json
+FL01,flood_same_creator,rate_limit — 1 of 12 from one creator_id,"{""text"": ""This is an ordinary submission sent to test where the rate limit cuts in. The content does not matter here only the volume."", ""creator_id"": ""flood_attacker_01""}",json,
+FL02,flood_same_creator,rate_limit — 2 of 12 from one creator_id,"{""text"": ""This is an ordinary submission sent to test where the rate limit cuts in. The content does not matter here only the volume."", ""creator_id"": ""flood_attacker_01""}",json,
+FL03,flood_same_creator,rate_limit — 3 of 12 from one creator_id,"{""text"": ""This is an ordinary submission sent to test where the rate limit cuts in. The content does not matter here only the volume."", ""creator_id"": ""flood_attacker_01""}",json,
+FL04,flood_same_creator,rate_limit — 4 of 12 from one creator_id,"{""text"": ""This is an ordinary submission sent to test where the rate limit cuts in. The content does not matter here only the volume."", ""creator_id"": ""flood_attacker_01""}",json,
+FL05,flood_same_creator,rate_limit — 5 of 12 from one creator_id,"{""text"": ""This is an ordinary submission sent to test where the rate limit cuts in. The content does not matter here only the volume."", ""creator_id"": ""flood_attacker_01""}",json,
+FL06,flood_same_creator,rate_limit — 6 of 12 from one creator_id,"{""text"": ""This is an ordinary submission sent to test where the rate limit cuts in. The content does not matter here only the volume."", ""creator_id"": ""flood_attacker_01""}",json,
+FL07,flood_same_creator,rate_limit — 7 of 12 from one creator_id,"{""text"": ""This is an ordinary submission sent to test where the rate limit cuts in. The content does not matter here only the volume."", ""creator_id"": ""flood_attacker_01""}",json,
+FL08,flood_same_creator,rate_limit — 8 of 12 from one creator_id,"{""text"": ""This is an ordinary submission sent to test where the rate limit cuts in. The content does not matter here only the volume."", ""creator_id"": ""flood_attacker_01""}",json,
+FL09,flood_same_creator,rate_limit — 9 of 12 from one creator_id,"{""text"": ""This is an ordinary submission sent to test where the rate limit cuts in. The content does not matter here only the volume."", ""creator_id"": ""flood_attacker_01""}",json,
+FL10,flood_same_creator,rate_limit — 10 of 12 from one creator_id,"{""text"": ""This is an ordinary submission sent to test where the rate limit cuts in. The content does not matter here only the volume."", ""creator_id"": ""flood_attacker_01""}",json,
+FL11,flood_same_creator,rate_limit — 11 of 12 from one creator_id,"{""text"": ""This is an ordinary submission sent to test where the rate limit cuts in. The content does not matter here only the volume."", ""creator_id"": ""flood_attacker_01""}",json,
+FL12,flood_same_creator,rate_limit — 12 of 12 from one creator_id,"{""text"": ""This is an ordinary submission sent to test where the rate limit cuts in. The content does not matter here only the volume."", ""creator_id"": ""flood_attacker_01""}",json,
